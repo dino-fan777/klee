@@ -376,6 +376,18 @@ ssize_t read(int fd, void *buf, size_t count) {
     return r;
   }
   else {
+    
+    if (!(f->flags & eReadable)) {
+      klee_warning("read() rejected: fd not opened for reading");
+      klee_print_expr("fd", fd);
+      klee_print_expr("f->flags", f->flags);
+      printf("  [POSIX] read() blocked: fd=%d flags=0x%x (no eReadable bit)\n"
+             "          returning -1, errno=EBADF(%d)\n",
+             fd, f->flags, EBADF);
+      errno = EBADF;
+      return -1;
+    }
+    
     assert(f->off >= 0);
     if (((off64_t)f->dfile->size) < f->off)
       return 0;
