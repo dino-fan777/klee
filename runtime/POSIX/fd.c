@@ -161,6 +161,12 @@ int __fd_open(const char *pathname, int flags, mode_t mode) {
       return -1;
     }
 
+    if((flags & O_TRUNC) && ((flags & O_ACCMODE) != O_RDONLY)){
+      klee_warning("O_TRUNC flag set, clearing file contents");
+      memset(df->contents, 0, df->size);
+      //df->size = 0;
+    }
+
     if ((flags & O_EXCL) && !(flags & O_CREAT)) {
       /* The result of using O_EXCL without O_CREAT is undefined, so
 	 we return error */
@@ -192,6 +198,8 @@ int __fd_open(const char *pathname, int flags, mode_t mode) {
     f->flags |= eReadable | eWriteable;
   }
   
+
+
   return fd;
 }
 
