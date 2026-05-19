@@ -111,8 +111,9 @@ mode_t umask(mode_t mask) {
    s->st_uid / geteuid() and s->st_gid / getegid(). */
 static int has_permission(int flags, struct stat64 *s) {
   mode_t mode = s->st_mode;
-  int read_request = ((flags & O_RDONLY) | (flags & O_RDWR)) ? 1 : 0;
-  int write_request = ((flags & O_WRONLY) | (flags & O_RDWR)) ? 1 : 0;
+  int accmode = flags & O_ACCMODE;
+  int read_request = !(accmode & O_WRONLY);
+  int write_request = accmode ? 1 : 0;
 
   /* It is important to do this check using only bitwise operators so that we 
      return 0 a single time in symbolic execution mode. */
