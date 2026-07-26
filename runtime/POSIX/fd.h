@@ -120,4 +120,8 @@ int __fd_ftruncate(int fd, off64_t length);
 int __fd_statfs(const char *path, struct statfs *buf);
 int __fd_getdents(unsigned int fd, struct dirent64 *dirp, unsigned int count);
 
+/* Newly exposed functions */
+
+exe_file_t *__get_file(int fd);
+
 #endif /* KLEE_FD_H */

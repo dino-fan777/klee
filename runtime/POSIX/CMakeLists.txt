@@ -10,6 +10,7 @@
 set(LIB_PREFIX "RuntimePOSIX")
 set(SRC_FILES
         fd.c
+        file_api.c
         fd_32.c
         fd_64.c
         fd_init.c
@@ -18,6 +19,7 @@ set(SRC_FILES
         misc.c
         selinux.c
         stubs.c
+
         )
 
 # Build it
