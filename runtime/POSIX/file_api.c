@@ -1,10 +1,14 @@
+#define _POSIX_C_SOURCE 200809L
+#define _LARGEFILE64_SOURCE
+
 #include "fd.h"
 #include "klee/file_api.h"
 #include "klee/klee.h"
-
 #include <string.h>
 #include <fcntl.h>
+#include <unistd.h>
 
+#pragma message ("KLEE FILE API extension compiled")
 
 /*
 The API exposes the following KLEE functions:
@@ -26,7 +30,8 @@ int __file_close(int fd){
 
 //Dangerous. If any other descriptor is open on the same dfile (dup, or a second open of "A", setting flags/mode) it will null dereference and crash  
 int __file_delete(int fd){
-   exe_file_t *f = __get_file(fd);
+   exe_file_t *f;
+   f = __get_file(fd);
    if(!f)
       return -1;
    close(fd); //Without this "f" would be a file descriptor pointing to 0x0 file
@@ -46,7 +51,7 @@ FILE *__FILE_from_fd(int fd) {
    klee_report_error(__FILE__, __LINE__,
       "__FILE_from_fd: fd->FILE* is not supported by the KLEE backend "
       "(KLEE models descriptors, not stdio streams)", "unsupported.err");
-   return -1;
+   return 0; //returns null pointer
 }
 
 int __fd_from_FILE(FILE* fp){
@@ -54,14 +59,16 @@ int __fd_from_FILE(FILE* fp){
 }
 
 ssize_t __file_size(int fd){
-   exe_file_t *f = __get_file(fd);
+   exe_file_t *f;
+   f = __get_file(fd);
    if(!f)
       return -1;
    return f->dfile->size;
 }
 
 ssize_t __file_set_size(int fd, size_t size){
-   exe_file_t *f = __get_file(fd);
+   exe_file_t *f;
+   f = __get_file(fd);
    if(!f)
       return -1;
    f->dfile->size = size;
@@ -69,14 +76,16 @@ ssize_t __file_set_size(int fd, size_t size){
 }
 
 ssize_t __file_offset(int fd){
-   exe_file_t *f = __get_file(fd);
+   exe_file_t *f;
+   f = __get_file(fd);
    if(!f)
       return -1;
    return f->off;
 }
 
 ssize_t __file_set_offset(int fd, size_t offset){
-   exe_file_t *f = __get_file(fd);
+   exe_file_t *f;
+   f = __get_file(fd);
    if(!f)
       return -1;
    f->off = (off64_t)offset;
@@ -84,23 +93,28 @@ ssize_t __file_set_offset(int fd, size_t offset){
 }
 
 int __file_flags(int fd){
-   exe_file_t *f = __get_file(fd);
-   if(!f)
+   exe_file_t *f;
+   int r, w;
+   f = __get_file(fd);
+   if(!f) 
       return -1;
-   int read = (f->flags & eReadable) != 0;
-   int write = (f->flags & eWriteable) != 0;
-   
-   if(read && write) return O_RDWR;
-   if(write) return O_WRONLY;
+   r = (f->flags & eReadable) != 0;
+   w = (f->flags & eWriteable) != 0;
+   if (r && w) 
+      return O_RDWR;
+   if (w)      
+      return O_WRONLY;
    return O_RDONLY;
 }
 
 int __file_set_flags(int fd, int flags){
-   exe_file_t *f = __get_file(fd);
+   exe_file_t *f;
+   f = __get_file(fd);
+   int accmode;
    if(!f)
       return -1;
 
-   acc_mode = flags & O_ACCMODE;
+   accmode = flags & O_ACCMODE;
    f->flags &= ~(eReadable | eWriteable);
    if (accmode == O_RDONLY || accmode == O_RDWR) f->flags |= eReadable;
    if (accmode == O_WRONLY || accmode == O_RDWR) f->flags |= eWriteable;
@@ -109,14 +123,16 @@ int __file_set_flags(int fd, int flags){
 }
 
 mode_t __file_mode(int fd){
-   exe_file_t *f = __get_file(fd);
+   exe_file_t *f;
+   f = __get_file(fd);
    if(!f)
       return -1;
    return f->dfile->stat->st_mode;
 }
 
 int __file_set_mode(int fd, mode_t mode){
-   exe_file_t *f = __get_file(fd);
+   exe_file_t *f;
+   f = __get_file(fd);
    if(!f)
       return -1;
    f->dfile->stat->st_mode = mode;
