@@ -4,9 +4,6 @@
 #include "fd.h"
 #include "klee/file_api.h"
 #include "klee/klee.h"
-#include <string.h>
-#include <fcntl.h>
-#include <unistd.h>
 
 #pragma message ("KLEE FILE API extension compiled")
 
@@ -19,6 +16,20 @@ In all of these functions the static keyword was removed and the function expose
 
 #define DEFAULT_MODE 0644 //-rw-r--r--
 
+cnstr_t _EQ_ (long a, long b) { return a == b; }
+cnstr_t _NEQ_(long a, long b) { return a != b; }
+cnstr_t _LT_ (long a, long b) { return a <  b; }
+cnstr_t _LE_ (long a, long b) { return a <= b; }
+cnstr_t _GT_ (long a, long b) { return a >  b; }
+cnstr_t _GE_ (long a, long b) { return a >= b; }
+cnstr_t _AND_(cnstr_t a, cnstr_t b) { return a && b; }
+cnstr_t _OR_ (cnstr_t a, cnstr_t b) { return a || b; }
+cnstr_t _NOT_(cnstr_t a)            { return !a; }
+
+/* ══════════════════════════════════════════════════════════════════════
+**** OPEN/FOPEN
+* ══════════════════════════════════════════════════════════════════════ */
+
 int __file_create(char *name){
    return open(name, O_CREAT | O_RDWR, DEFAULT_MODE);
 }
@@ -28,13 +39,13 @@ int __file_close(int fd){
    return close(fd);
 }
 
-//Dangerous. If any other descriptor is open on the same dfile (dup, or a second open of "A", setting flags/mode) it will null dereference and crash  
+//Dangerous. If any other descriptor is open on the same dfile (dup, or a second open of "A", setting flags/mode) it will null dereference  
 int __file_delete(int fd){
    exe_file_t *f;
    f = __get_file(fd);
    if(!f)
       return -1;
-   close(fd); //Without this "f" would be a file descriptor pointing to 0x0 file
+   close(fd);
    memset(f->dfile, 0, sizeof *f->dfile);
    return 1;
 }
@@ -98,9 +109,9 @@ int __file_flags(int fd){
    f = __get_file(fd);
    if(!f) 
       return -1;
-   r = (f->flags & eReadable) != 0;
-   w = (f->flags & eWriteable) != 0;
-   if (r && w) 
+   r = _NEQ_(f->flags & eReadable, 0); 
+   w = _NEQ_(f->flags & eWriteable, 0);
+   if (_AND_(r, w))  
       return O_RDWR;
    if (w)      
       return O_WRONLY;
@@ -116,13 +127,13 @@ int __file_set_flags(int fd, int flags){
 
    accmode = flags & O_ACCMODE;
    f->flags &= ~(eReadable | eWriteable);
-   if (accmode == O_RDONLY || accmode == O_RDWR) f->flags |= eReadable;
-   if (accmode == O_WRONLY || accmode == O_RDWR) f->flags |= eWriteable;
+   if (_OR_(_EQ_(accmode, O_RDONLY), _EQ_(accmode, O_RDWR))) f->flags |= eReadable;
+   if (_OR_(_EQ_(accmode, O_WRONLY), _EQ_(accmode, O_RDWR))) f->flags |= eWriteable;
 
    return __file_flags(fd); //Not sure if echo back is POSIX
 }
 
-mode_t __file_mode(int fd){
+int __file_mode(int fd){
    exe_file_t *f;
    f = __get_file(fd);
    if(!f)
@@ -139,6 +150,10 @@ int __file_set_mode(int fd, mode_t mode){
    return f->dfile->stat->st_mode;
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+**** READ/WRITE
+* ══════════════════════════════════════════════════════════════════════ */
+
 ssize_t __file_read(int fd, void* buffer, size_t count){
    return read(fd, buffer, count);
 }
@@ -147,10 +162,49 @@ ssize_t __file_write(int fd, void* buffer, size_t count){
    return write(fd, buffer, count);
 }
 
- int __file_dup(int oldfd){
-   return dup(oldfd);
- }
+/* ══════════════════════════════════════════════════════════════════════
+**** DUP/DUP2
+* ══════════════════════════════════════════════════════════════════════ */
 
- int __file_dup2(int oldfd, int newfd){
+int __file_dup(int oldfd){
+   return dup(oldfd);
+}
+
+int __file_dup2(int oldfd, int newfd){
    return dup2(oldfd, newfd);
- }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+ **** ERROR
+ * ══════════════════════════════════════════════════════════════════════ */
+
+void __report_error(const char* filename, unsigned int line, const char* message){
+   klee_report_error(filename, line, message, ".error");
+}
+
+unsigned int __get_errno(void){
+   return klee_get_errno();
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════
+ **** HELPERS
+ * ══════════════════════════════════════════════════════════════════════ */
+//For now concretize returns only longs
+long __concretize(symbolic var){
+   return klee_get_valuel(var);
+}
+
+//klee_is_sat to implement, klee_assert is per path forks
+void __gen_assert(cnstr_t expr){
+   if (klee_is_sat(_NOT_(expr)))
+      __report_error(__FILE__, __LINE__, "assertion is not necessarily true");
+}
+
+int __is_symbolic(symbolic var){
+   return klee_is_symbolic(var);
+}
+
+void __assume(cnstr_t c) { 
+   klee_assume(c); 
+}

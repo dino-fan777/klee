@@ -162,6 +162,10 @@ extern "C" {
 
   /* Get errno value of the current state */
   int klee_get_errno(void);
+
+  /* Check if a given expression is SAT */
+  unsigned klee_is_sat(uintptr_t expr);
+
 #ifdef __cplusplus
 }
 #endif

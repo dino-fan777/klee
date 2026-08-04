@@ -61,3 +61,27 @@ EOF
 
 clang -I /tmp/klee_src/include -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone /tmp/smoke.c -o /tmp/smoke.bc
 /tmp/klee_build130stp_z3/bin/klee --libc=uclibc --posix-runtime --exit-on-error /tmp/smoke.bc --sym-files 1 10
+
+File Api1 FILE/OPEN:
+clang -I /tmp/klee_src/include -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone test/Runtime/POSIX/FileApiTest1.c -o /tmp/FileApiTest1.bc
+/tmp/klee_build130stp_z3/bin/klee --libc=uclibc --posix-runtime /tmp/FileApiTest1.bc --sym-files 1 10
+
+File Api2 Is_SYMBOLIC:
+clang -I /tmp/klee_src/include -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone test/Runtime/POSIX/FileApiTest2.c -o /tmp/FileApiTest2.bc
+/tmp/klee_build130stp_z3/bin/klee --libc=uclibc --posix-runtime /tmp/FileApiTest2.bc --sym-files 1 10
+
+File Api3 SAT:
+clang -I /tmp/klee_src/include -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone test/Runtime/POSIX/FileApiTest3.c -o /tmp/FileApiTest3.bc
+/tmp/klee_build130stp_z3/bin/klee --libc=uclibc --posix-runtime /tmp/FileApiTest3.bc --sym-files 1 10
+
+File Api4 CONCRETIZE:
+clang -I /tmp/klee_src/include -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone test/Runtime/POSIX/FileApiTest4.c -o /tmp/FileApiTest4.bc
+/tmp/klee_build130stp_z3/bin/klee --libc=uclibc --posix-runtime /tmp/FileApiTest4.bc --sym-files 1 10
+
+File Api5 ASSERT WITH CONDS:
+clang -I /tmp/klee_src/include -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone test/Runtime/POSIX/FileApiTest5.c -o /tmp/FileApiTest5.bc
+/tmp/klee_build130stp_z3/bin/klee --libc=uclibc --posix-runtime /tmp/FileApiTest5.bc --sym-files 1 10
+
+File Api6 ASSERT NEG WITH CONDS:
+clang -I /tmp/klee_src/include -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone test/Runtime/POSIX/FileApiTest6.c -o /tmp/FileApiTest6.bc
+/tmp/klee_build130stp_z3/bin/klee --libc=uclibc --posix-runtime /tmp/FileApiTest6.bc --sym-files 1 10

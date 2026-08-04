@@ -119,6 +119,7 @@ namespace klee {
     HANDLER(handleUnderConstrained);
     HANDLER(handleWarning);
     HANDLER(handleWarningOnce);
+    HANDLER(handleIsSat);
 #undef HANDLER
   };
 } // End klee namespace

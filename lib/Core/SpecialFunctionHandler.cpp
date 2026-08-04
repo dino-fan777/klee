@@ -103,6 +103,7 @@ static constexpr std::array handlerInfo = {
   add("klee_define_fixed_object", handleDefineFixedObject, false),
   add("klee_get_obj_size", handleGetObjSize, true),
   add("klee_get_errno", handleGetErrno, true),
+  add("klee_is_sat", handleIsSat, true),
 #ifndef __APPLE__
   add("__errno_location", handleErrnoLocation, true),
 #else
@@ -841,4 +842,42 @@ void SpecialFunctionHandler::handleMarkGlobal(ExecutionState &state,
     assert(!mo->isLocal);
     mo->isGlobal = true;
   }
+}
+
+void SpecialFunctionHandler::handleIsSat(ExecutionState &state,
+                                         KInstruction *target,
+                                         std::vector<ref<Expr>> &arguments) {
+  assert(arguments.size() == 1 && "klee_is_sat requires one argument");
+  
+  ref<Expr> cond = arguments[0];
+  klee_warning("[is_sat] called; arg width = %u bits", cond->getWidth());
+  llvm::errs() << "[is_sat] raw arg expr: " << cond << "\n";
+
+  //cond arrives as a symbolic expression of width sizeof(cnstr_t)*8 bits,
+  //not a concrete 0/1, its truth value depends on the symbolic variables?
+  //build (cond != 0): converts the integer-width expression into a 1-bit
+  //boolean the solver can reason about
+  if (cond->getWidth() != Expr::Bool){
+    //we create a expression where cond != 0, this turns it into an integer into a bool
+    cond = NeExpr::create(cond,
+            ConstantExpr::create(0, cond->getWidth()));
+    llvm::errs() << "[is_sat] coerced to bool: " << cond << "\n";
+  }
+
+  klee_warning("[is_sat] cond isSymbolic = %d", !isa<ConstantExpr>(cond));
+
+  //mayBeTrue - is_sat
+  //mustBeTrue - is_certain
+  bool result;
+  bool success = executor.solver->mayBeTrue(state.constraints, cond, result, state.queryMetaData);
+  klee_warning("[is_sat] solver success = %d, result (mayBeTrue) = %d", success, result);
+
+  assert(success && "solver query failed");
+  klee_warning("[is_sat] binding return value = %d", result ? 1 : 0);
+
+  //write the 0/1 answer back into the program
+  //result ? 1 : 0 turns the C++ bool into an int
+  //has to be int32 since we declare klee_is_sat return as unsigned
+  executor.bindLocal(target, state,
+      ConstantExpr::create(result ? 1 : 0, Expr::Int32));
 }
