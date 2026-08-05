@@ -195,8 +195,9 @@ long __concretize(symbolic var){
    return klee_get_valuel(var);
 }
 
+//certain vs is_sat
 void __gen_assert(cnstr_t expr){
-   if (klee_is_sat(_NOT_(expr)))
+   if (klee_is_certain(_NOT_(expr)))
       __report_error(__FILE__, __LINE__, "assertion is not necessarily true");
 }
 

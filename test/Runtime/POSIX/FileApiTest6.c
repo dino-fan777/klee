@@ -13,7 +13,7 @@ int main(void) {
    klee_assume(x >= 0);
    klee_assume(x <= 5);                      //0 <= x <= 5
 
-   // NOT(x==3) is SAT (x could be 0) -> must report?
+   //NOT(x==3) is SAT (x could be 0) -> must report?
    __gen_assert(_EQ_(x, 3));
    return 0;
 }
