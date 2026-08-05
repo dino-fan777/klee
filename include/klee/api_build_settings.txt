@@ -89,3 +89,7 @@ clang -I /tmp/klee_src/include -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone 
 File Api7 SYMVAR:
 clang -I /tmp/klee_src/include -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone test/Runtime/POSIX/FileApiTest7.c -o /tmp/FileApiTest7.bc
 /tmp/klee_build130stp_z3/bin/klee --libc=uclibc --posix-runtime /tmp/FileApiTest7.bc --sym-files 1 10
+
+File Api8 ISCERTAIN:
+clang -I /tmp/klee_src/include -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone test/Runtime/POSIX/FileApiTest8.c -o /tmp/FileApiTest8.bc
+/tmp/klee_build130stp_z3/bin/klee --libc=uclibc --posix-runtime /tmp/FileApiTest8.bc --sym-files 1 10

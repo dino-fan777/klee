@@ -227,3 +227,11 @@ symbolic __sym_var(size_t size){
    snprintf(name, sizeof(name), "sym_var_%d", counter++);
    return __sym_var_named(name, size);
 }
+
+int __is_certain(cnstr_t cnstr){
+   return klee_is_certain(cnstr);
+}
+
+int __is_sat(cnstr_t cnstr){
+   return klee_is_sat(cnstr);
+}

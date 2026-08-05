@@ -104,6 +104,7 @@ static constexpr std::array handlerInfo = {
   add("klee_get_obj_size", handleGetObjSize, true),
   add("klee_get_errno", handleGetErrno, true),
   add("klee_is_sat", handleIsSat, true),
+  add("klee_is_certain", handleIsCertain, true),
 #ifndef __APPLE__
   add("__errno_location", handleErrnoLocation, true),
 #else
@@ -878,6 +879,38 @@ void SpecialFunctionHandler::handleIsSat(ExecutionState &state,
   //write the 0/1 answer back into the program
   //result ? 1 : 0 turns the C++ bool into an int
   //has to be int32 since we declare klee_is_sat return as unsigned
+  executor.bindLocal(target, state,
+      ConstantExpr::create(result ? 1 : 0, Expr::Int32));
+}
+
+void SpecialFunctionHandler::handleIsCertain(ExecutionState &state,
+                                             KInstruction *target,
+                                             std::vector<ref<Expr>> &arguments) {
+  assert(arguments.size() == 1 && "klee_is_certain requires one argument");
+
+  ref<Expr> cond = arguments[0];
+
+  klee_warning("[is_certain] called; arg width = %u bits", cond->getWidth());
+  llvm::errs() << "[is_certain] raw arg expr: " << cond << "\n";
+
+  if (cond->getWidth() != Expr::Bool) {
+    cond = NeExpr::create(cond,
+             ConstantExpr::create(0, cond->getWidth()));
+    llvm::errs() << "[is_certain] coerced to bool: " << cond << "\n";
+  }
+
+  klee_warning("[is_certain] cond isSymbolic = %d", !isa<ConstantExpr>(cond));
+
+  bool result;
+  bool success = executor.solver->mustBeTrue(state.constraints, cond, result, state.queryMetaData);
+
+  klee_warning("[is_certain] solver success = %d, result (mustBeTrue) = %d",
+               success, result);
+
+  assert(success && "solver query failed");
+
+  klee_warning("[is_certain] binding return value = %d", result ? 1 : 0);
+
   executor.bindLocal(target, state,
       ConstantExpr::create(result ? 1 : 0, Expr::Int32));
 }

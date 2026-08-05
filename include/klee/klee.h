@@ -166,6 +166,9 @@ extern "C" {
   /* Check if a given expression is SAT */
   unsigned klee_is_sat(uintptr_t expr);
 
+  /* Check if a given expression is certain */
+  unsigned klee_is_certain(uintptr_t expr);
+
 #ifdef __cplusplus
 }
 #endif

@@ -63,7 +63,9 @@ typedef long symbolic;
 
  long __concretize(symbolic var);
  void __gen_assert(cnstr_t cnstr);
- void __assume(cnstr_t c);
+ void __assume(cnstr_t cnstr);
+ int __is_certain(cnstr_t cnstr);
+ int __is_sat(cnstr_t cnstr);
  int __is_symbolic(symbolic var);
  symbolic __sym_var(size_t size);
  symbolic __sym_var_named(char* name, size_t size);

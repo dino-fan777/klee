@@ -120,6 +120,7 @@ namespace klee {
     HANDLER(handleWarning);
     HANDLER(handleWarningOnce);
     HANDLER(handleIsSat);
+    HANDLER(handleIsCertain);
 #undef HANDLER
   };
 } // End klee namespace
