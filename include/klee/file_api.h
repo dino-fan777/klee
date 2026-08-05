@@ -7,6 +7,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -64,6 +65,8 @@ typedef long symbolic;
  void __gen_assert(cnstr_t cnstr);
  void __assume(cnstr_t c);
  int __is_symbolic(symbolic var);
+ symbolic __sym_var(size_t size);
+ symbolic __sym_var_named(char* name, size_t size);
  cnstr_t _EQ_ (long a, long b);
  cnstr_t _NEQ_(long a, long b);
  cnstr_t _LT_ (long a, long b);

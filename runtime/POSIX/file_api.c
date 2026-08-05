@@ -188,14 +188,13 @@ unsigned int __get_errno(void){
 
 
 /* ══════════════════════════════════════════════════════════════════════
- **** HELPERS
+ **** GEN-API
  * ══════════════════════════════════════════════════════════════════════ */
 //For now concretize returns only longs
 long __concretize(symbolic var){
    return klee_get_valuel(var);
 }
 
-//klee_is_sat to implement, klee_assert is per path forks
 void __gen_assert(cnstr_t expr){
    if (klee_is_sat(_NOT_(expr)))
       __report_error(__FILE__, __LINE__, "assertion is not necessarily true");
@@ -207,4 +206,24 @@ int __is_symbolic(symbolic var){
 
 void __assume(cnstr_t c) { 
    klee_assume(c); 
+}
+
+symbolic __sym_var_named(char* name, size_t size){
+   symbolic v;
+   klee_make_symbolic(&v, sizeof(v), name);
+
+   //let's say we request 32 bits instead of the usual 64 (symbolic is a long)
+   //we constraint the the new variable to be between 0 <= var <= 2^32 (size)
+   if (size < sizeof(v) * 8) {
+      symbolic max = ((symbolic)1 << size);
+      __assume(_AND_(_GE_(v, 0), _LT_(v, max)));
+   }
+   return v;
+}
+
+symbolic __sym_var(size_t size){
+   static int counter = 0;
+   char name[32];
+   snprintf(name, sizeof(name), "sym_var_%d", counter++);
+   return __sym_var_named(name, size);
 }
