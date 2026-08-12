@@ -240,3 +240,7 @@ int __is_sat(cnstr_t cnstr){
 cnstr_t file_exists(const char *fname){
     return _AND_(_GE_(fname[0], 'A'), _LE_(fname[0], 'Z'));
 }
+
+static cnstr_t file_not_exists(const char *fname) {
+    return _NOT_(file_exists(fname));
+}
