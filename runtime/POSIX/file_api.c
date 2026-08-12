@@ -190,12 +190,12 @@ unsigned int __get_errno(void){
 /* ══════════════════════════════════════════════════════════════════════
  **** GEN-API
  * ══════════════════════════════════════════════════════════════════════ */
-//For now concretize returns only longs
+
+ //For now concretize returns only longs
 long __concretize(symbolic var){
    return klee_get_valuel(var);
 }
 
-//certain vs is_sat
 void __gen_assert(cnstr_t expr){
    if (klee_is_certain(_NOT_(expr)))
       __report_error(__FILE__, __LINE__, "assertion is not necessarily true");
@@ -235,4 +235,8 @@ int __is_certain(cnstr_t cnstr){
 
 int __is_sat(cnstr_t cnstr){
    return klee_is_sat(cnstr);
+}
+
+cnstr_t file_exists(const char *fname){
+    return _AND_(_GE_(fname[0], 'A'), _LE_(fname[0], 'Z'));
 }

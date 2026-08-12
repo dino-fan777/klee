@@ -35,6 +35,7 @@ typedef long symbolic;
  int __file_set_mode(int fd, mode_t mode);
  int __file_mode(int fd);
  int __file_flags(int fd);
+ cnstr_t file_exists(void);
 
 /* ══════════════════════════════════════════════════════════════════════
 **** READ/WRITE
