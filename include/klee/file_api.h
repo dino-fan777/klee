@@ -4,6 +4,7 @@
 #include "klee.h"
 #include <stdio.h> //FILE *
 #include <sys/types.h> //ssize_t/mode_t
+#include <stdlib.h> //malloc
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>

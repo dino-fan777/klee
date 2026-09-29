@@ -39,7 +39,7 @@ exe_sym_env_t __exe_env = {
   0
 };
 
-static void __create_new_dfile(exe_disk_file_t *dfile, unsigned size, 
+void __create_new_dfile(exe_disk_file_t *dfile, unsigned size, 
                                const char *name, struct stat64 *defaults) {
   struct stat64 *s = malloc(sizeof(*s));
   if (!s)

@@ -124,4 +124,9 @@ int __fd_getdents(unsigned int fd, struct dirent64 *dirp, unsigned int count);
 
 exe_file_t *__get_file(int fd);
 
+// Builds a symbolic file into *dfile; exposed so __file_create() can register
+// them at runtime, not only at startup via --sym-files.
+void __create_new_dfile(exe_disk_file_t *dfile, unsigned size,
+                        const char *name, struct stat64 *defaults);
+
 #endif /* KLEE_FD_H */

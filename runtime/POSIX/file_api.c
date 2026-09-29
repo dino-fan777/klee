@@ -5,8 +5,6 @@
 #include "klee/file_api.h"
 #include "klee/klee.h"
 
-#pragma message ("KLEE FILE API extension compiled")
-
 /*
 The API exposes the following KLEE functions:
    - exe_file_t *__get_file(int fd)
@@ -30,11 +28,79 @@ cnstr_t _NOT_(cnstr_t a)            { return !a; }
 **** OPEN/FOPEN
 * ══════════════════════════════════════════════════════════════════════ */
 
+// Size of a symbolic file created by __file_create(). Changing it breaks tests
+// that assert values derived from it: lseek test_07 expects SEEK_END == 10,
+// lseek test_08 expects -3 from the end == 7, read test_09 assumes 10 bytes.
+#define SYM_FILE_DEFAULT_SIZE 10
+
+// Symbolic files creatable at runtime. The array is allocated once and never
+// grown: open descriptors point into it, so realloc would leave them dangling.
+#define MAX_RUNTIME_SYM_FILES 8
+
+static exe_disk_file_t *__runtime_sym_files = NULL;
+
+// Creates a file the symbolic file system knows about: symbolic contents and
+// stat, recognised by open() and file_exists(), like one from --sym-files.
+// KLEE identifies symbolic files by position ('A', 'B', ...), so the new file
+// takes the next letter; name only labels the contents, it is not the path.
+// Returns an open read/write descriptor, or -1 if the runtime limit is hit.
 int __file_create(char *name){
-   return open(name, O_CREAT | O_RDWR, DEFAULT_MODE);
+   unsigned idx = __exe_fs.n_sym_files;
+   char symname[64];
+   struct stat64 defaults;
+   exe_file_t *f;
+   int nfd;
+   unsigned i;
+
+   if (!__runtime_sym_files) {
+      __runtime_sym_files =
+          malloc(sizeof(*__runtime_sym_files) * MAX_RUNTIME_SYM_FILES);
+      if (!__runtime_sym_files)
+         return -1;
+      for (i = 0; i < idx && i < MAX_RUNTIME_SYM_FILES; i++)   // keep --sym-files entries
+         __runtime_sym_files[i] = __exe_fs.sym_files[i];
+      __exe_fs.sym_files = __runtime_sym_files;
+   }
+
+   if (idx >= MAX_RUNTIME_SYM_FILES)
+      return -1;
+
+   i = 0;
+   if (name && name[0]) {
+      while (i < 56 && name[i]) {
+         symname[i] = name[i];
+         i++;
+      }
+   } else {
+      symname[0] = (char)('A' + idx);
+      i = 1;
+   }
+   symname[i] = '\0';
+
+   stat64(".", &defaults);
+   __create_new_dfile(&__exe_fs.sym_files[idx], SYM_FILE_DEFAULT_SIZE,
+                      symname, &defaults);
+   __exe_fs.n_sym_files = idx + 1;
+
+   // Bind the descriptor directly instead of calling open(): open() would fork on
+   // has_permission() against the new symbolic st_mode, and on success overwrite
+   // st_mode with (mode & ~umask), clearing the bits the caller is about to test.
+   for (nfd = 0; nfd < MAX_FDS; ++nfd)
+      if (!(__exe_env.fds[nfd].flags & eOpen))
+         break;
+   if (nfd == MAX_FDS) {
+      errno = EMFILE;
+      return -1;
+   }
+
+   f = &__exe_env.fds[nfd];
+   memset(f, 0, sizeof *f);
+   f->dfile = &__exe_fs.sym_files[idx];
+   f->flags = eOpen | eReadable | eWriteable;
+
+   return nfd;
 }
 
-//Does memset(f, 0, sizeof *f); but "f" is a file descriptor struct, file still exists in memory but it's pointer is now 0. 
 int __file_close(int fd){
    return close(fd);
 }
@@ -197,8 +263,7 @@ long __concretize(symbolic var){
 }
 
 void __gen_assert(cnstr_t expr){
-   if (klee_is_certain(_NOT_(expr)))
-      __report_error(__FILE__, __LINE__, "assertion is not necessarily true");
+   return klee_assert(expr);
 }
 
 int __is_symbolic(symbolic var){
@@ -213,8 +278,7 @@ symbolic __sym_var_named(char* name, size_t size){
    symbolic v;
    klee_make_symbolic(&v, sizeof(v), name);
 
-   //let's say we request 32 bits instead of the usual 64 (symbolic is a long)
-   //we constraint the the new variable to be between 0 <= var <= 2^32 (size)
+   //smaller than symbolic
    if (size < sizeof(v) * 8) {
       symbolic max = ((symbolic)1 << size);
       __assume(_AND_(_GE_(v, 0), _LT_(v, max)));
@@ -237,10 +301,46 @@ int __is_sat(cnstr_t cnstr){
    return klee_is_sat(cnstr);
 }
 
+/*
 cnstr_t file_exists(const char *fname){
     return _AND_(_GE_(fname[0], 'A'), _LE_(fname[0], 'Z'));
 }
+*/
+
+cnstr_t file_exists(const char *fname) {
+    cnstr_t m = _EQ_(0, 1);
+    unsigned i;
+    for (i = 0; i < __exe_fs.n_sym_files; i++) {
+        cnstr_t name_match  = _EQ_(fname[0], (long)('A' + i));
+        cnstr_t not_deleted = _NEQ_(__exe_fs.sym_files[i].stat->st_ino, 0);
+        m = _OR_(m, _AND_(name_match, not_deleted));
+    }
+    return m;
+}
+
+/*
+cnstr_t file_exists(const char *fname) {
+    return _AND_(_GE_(fname[0], 'A'),
+                 _LT_(fname[0], (long)('A' + __exe_fs.n_sym_files)));
+}
+*/
+
+/*
+cnstr_t file_exists(const char *fname) {
+   struct stat sb;
+   cnstr_t in_range = _AND_(_GE_(fname[0], 'A'), _LE_(fname[0], 'Z'));
+   cnstr_t stat_ok  = _EQ_(stat(fname, &sb), 0);
+   return _AND_(in_range, stat_ok);
+}
+*/
 
 cnstr_t file_not_exists(const char *fname) {
     return _NOT_(file_exists(fname));
 }
+
+/*
+cnstr_t file_not_exists(const char *fname) {
+    cnstr_t in_domain = _AND_(_GE_(fname[0], 'A'), _LE_(fname[0], 'Z'));
+    return _AND_(in_domain, _NOT_(file_exists(fname)));
+}
+*/
