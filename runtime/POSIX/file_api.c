@@ -25,7 +25,7 @@ cnstr_t _OR_ (cnstr_t a, cnstr_t b) { return a || b; }
 cnstr_t _NOT_(cnstr_t a)            { return !a; }
 
 /* ══════════════════════════════════════════════════════════════════════
-**** OPEN/FOPEN
+**** FILES
 * ══════════════════════════════════════════════════════════════════════ */
 
 // Size of a symbolic file created by __file_create(). Changing it breaks tests
@@ -39,17 +39,18 @@ cnstr_t _NOT_(cnstr_t a)            { return !a; }
 
 static exe_disk_file_t *__runtime_sym_files = NULL;
 
-// Creates a file the symbolic file system knows about: symbolic contents and
-// stat, recognised by open() and file_exists(), like one from --sym-files.
-// KLEE identifies symbolic files by position ('A', 'B', ...), so the new file
-// takes the next letter; name only labels the contents, it is not the path.
-// Returns an open read/write descriptor, or -1 if the runtime limit is hit.
-int __file_create(char *name){
+// Creates the file `name`: a file the symbolic file system knows about, with
+// symbolic contents and stat, like one from --sym-files.
+//
+// KLEE names its symbolic files by position ('A', 'B', ...), so the only file
+// that can be created is the next letter. On paths where `name` is that
+// letter, the file is created; elsewhere it cannot be, and this returns -1.
+// A symbolic name forks on it, as KLEE does on any symbolic file name.
+// Returns 1, or -1 if the file cannot be created or the runtime limit is hit.
+int __file_create(const char *name){
    unsigned idx = __exe_fs.n_sym_files;
-   char symname[64];
+   char label[7] = "?_data";
    struct stat64 defaults;
-   exe_file_t *f;
-   int nfd;
    unsigned i;
 
    if (!__runtime_sym_files) {
@@ -65,63 +66,59 @@ int __file_create(char *name){
    if (idx >= MAX_RUNTIME_SYM_FILES)
       return -1;
 
-   i = 0;
-   if (name && name[0]) {
-      while (i < 56 && name[i]) {
-         symname[i] = name[i];
-         i++;
-      }
-   } else {
-      symname[0] = (char)('A' + idx);
-      i = 1;
-   }
-   symname[i] = '\0';
+   if (name[0] != (char)('A' + idx) || name[1] != '\0')
+      return -1;
+
+   // The label names the symbolic contents, as klee_init_fds names them
+   label[0] = (char)('A' + idx);
 
    stat64(".", &defaults);
    __create_new_dfile(&__exe_fs.sym_files[idx], SYM_FILE_DEFAULT_SIZE,
-                      symname, &defaults);
+                      label, &defaults);
    __exe_fs.n_sym_files = idx + 1;
+   return 1;
+}
 
-   // Bind the descriptor directly instead of calling open(): open() would fork on
-   // has_permission() against the new symbolic st_mode, and on success overwrite
-   // st_mode with (mode & ~umask), clearing the bits the caller is about to test.
-   for (nfd = 0; nfd < MAX_FDS; ++nfd)
-      if (!(__exe_env.fds[nfd].flags & eOpen))
-         break;
-   if (nfd == MAX_FDS) {
-      errno = EMFILE;
-      return -1;
+int __file_exists(const char *name){
+   return __get_sym_file(name) ? 1 : 0;
+}
+
+// unlink(name), as KLEE's own unlink does it
+int __file_delete(const char *name){
+   return unlink(name) == 0 ? 1 : -1;
+}
+
+// The open flags glibc's fopen uses for `mode`
+static int __fopen_flags(const char *mode){
+   int flags;
+
+   switch (mode[0]) {
+   case 'r': flags = O_RDONLY; break;
+   case 'w': flags = O_WRONLY | O_CREAT | O_TRUNC; break;
+   case 'a': flags = O_WRONLY | O_CREAT | O_APPEND; break;
+   default:  return -1;
    }
 
-   f = &__exe_env.fds[nfd];
-   memset(f, 0, sizeof *f);
-   f->dfile = &__exe_fs.sym_files[idx];
-   f->flags = eOpen | eReadable | eWriteable;
+   if (strchr(mode, '+'))
+      flags = (flags & ~O_ACCMODE) | O_RDWR;
+   if (strchr(mode, 'x'))
+      flags |= O_EXCL;
+   if (strchr(mode, 'e'))
+      flags |= O_CLOEXEC;
 
-   return nfd;
+   return flags;
+}
+
+// fopen(name, mode), returning the descriptor instead of a FILE *
+int __file_open(const char *name, const char *mode){
+   int flags = __fopen_flags(mode);
+   if (flags < 0)
+      return -1;
+   return open(name, flags, 0666);
 }
 
 int __file_close(int fd){
    return close(fd);
-}
-
-//Dangerous. If any other descriptor is open on the same dfile (dup, or a second open of "A", setting flags/mode) it will null dereference  
-int __file_delete(int fd){
-   exe_file_t *f;
-   f = __get_file(fd);
-   if(!f)
-      return -1;
-   close(fd);
-   memset(f->dfile, 0, sizeof *f->dfile);
-   return 1;
-}
-
-int __file_open(char *name){
-   return open(name, O_RDWR);
-}
-
-FILE *__file_fopen(char *name){
-   return fopen(name, "r+");
 }
 
 FILE *__FILE_from_fd(int fd) {
@@ -135,21 +132,25 @@ int __fd_from_FILE(FILE* fp){
    return fileno(fp);
 }
 
+// The file open on `fd`, if it is one of KLEE's symbolic files
+static exe_disk_file_t *__get_dfile(int fd){
+   exe_file_t *f = __get_file(fd);
+   return f ? f->dfile : NULL;
+}
+
 ssize_t __file_size(int fd){
-   exe_file_t *f;
-   f = __get_file(fd);
-   if(!f)
+   exe_disk_file_t *df = __get_dfile(fd);
+   if (!df)
       return -1;
-   return f->dfile->size;
+   return df->size;
 }
 
 ssize_t __file_set_size(int fd, size_t size){
-   exe_file_t *f;
-   f = __get_file(fd);
-   if(!f)
+   exe_disk_file_t *df = __get_dfile(fd);
+   if (!df)
       return -1;
-   f->dfile->size = size;
-   return (ssize_t)f->dfile->size;
+   df->size = size;
+   return (ssize_t)df->size;
 }
 
 ssize_t __file_offset(int fd){
@@ -169,51 +170,33 @@ ssize_t __file_set_offset(int fd, size_t offset){
    return (ssize_t)f->off;
 }
 
+// The flags `fd` was opened with, which __fd_open keeps for symbolic files
 int __file_flags(int fd){
    exe_file_t *f;
-   int r, w;
-   f = __get_file(fd);
-   if(!f) 
-      return -1;
-   r = _NEQ_(f->flags & eReadable, 0); 
-   w = _NEQ_(f->flags & eWriteable, 0);
-   if (_AND_(r, w))  
-      return O_RDWR;
-   if (w)      
-      return O_WRONLY;
-   return O_RDONLY;
-}
-
-int __file_set_flags(int fd, int flags){
-   exe_file_t *f;
-   f = __get_file(fd);
-   int accmode;
-   if(!f)
-      return -1;
-
-   accmode = flags & O_ACCMODE;
-   f->flags &= ~(eReadable | eWriteable);
-   if (_OR_(_EQ_(accmode, O_RDONLY), _EQ_(accmode, O_RDWR))) f->flags |= eReadable;
-   if (_OR_(_EQ_(accmode, O_WRONLY), _EQ_(accmode, O_RDWR))) f->flags |= eWriteable;
-
-   return __file_flags(fd); //Not sure if echo back is POSIX
-}
-
-int __file_mode(int fd){
-   exe_file_t *f;
    f = __get_file(fd);
    if(!f)
       return -1;
-   return f->dfile->stat->st_mode;
+   if (f->dfile)
+      return f->open_flags;
+   return fcntl(fd, F_GETFL);
 }
 
+// fstat(fd)'s st_mode, stored in *mode
+int __file_mode(int fd, mode_t *mode){
+   exe_disk_file_t *df = __get_dfile(fd);
+   if (!df)
+      return -1;
+   *mode = df->stat->st_mode;
+   return 1;
+}
+
+// fchmod(fd, mode): sets the permission bits, keeping the file type
 int __file_set_mode(int fd, mode_t mode){
-   exe_file_t *f;
-   f = __get_file(fd);
-   if(!f)
+   exe_disk_file_t *df = __get_dfile(fd);
+   if (!df)
       return -1;
-   f->dfile->stat->st_mode = mode;
-   return f->dfile->stat->st_mode;
+   df->stat->st_mode = (df->stat->st_mode & ~07777) | (mode & 07777);
+   return 1;
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -224,7 +207,7 @@ ssize_t __file_read(int fd, void* buffer, size_t count){
    return read(fd, buffer, count);
 }
 
-ssize_t __file_write(int fd, void* buffer, size_t count){
+ssize_t __file_write(int fd, const void* buffer, size_t count){
    return write(fd, buffer, count);
 }
 
@@ -254,7 +237,7 @@ unsigned int __get_errno(void){
 
 
 /* ══════════════════════════════════════════════════════════════════════
- **** GEN-API
+ **** CORE
  * ══════════════════════════════════════════════════════════════════════ */
 
  //For now concretize returns only longs
@@ -262,7 +245,8 @@ long __concretize(symbolic var){
    return klee_get_valuel(var);
 }
 
-void __gen_assert(cnstr_t expr){
+// Not __assert, which uClibc defines
+void __sra_assert(cnstr_t expr){
    return klee_assert(expr);
 }
 
@@ -293,6 +277,13 @@ symbolic __sym_var(size_t size){
    return __sym_var_named(name, size);
 }
 
+// The `index`th element of the symbolic array `name`, named name_index
+symbolic __sym_var_array(char* name, size_t index, size_t size){
+   char label[64];
+   snprintf(label, sizeof(label), "%s_%zu", name, index);
+   return __sym_var_named(label, size);
+}
+
 int __is_certain(cnstr_t cnstr){
    return klee_is_certain(cnstr);
 }
@@ -300,47 +291,3 @@ int __is_certain(cnstr_t cnstr){
 int __is_sat(cnstr_t cnstr){
    return klee_is_sat(cnstr);
 }
-
-/*
-cnstr_t file_exists(const char *fname){
-    return _AND_(_GE_(fname[0], 'A'), _LE_(fname[0], 'Z'));
-}
-*/
-
-cnstr_t file_exists(const char *fname) {
-    cnstr_t m = _EQ_(0, 1);
-    unsigned i;
-    for (i = 0; i < __exe_fs.n_sym_files; i++) {
-        cnstr_t name_match  = _EQ_(fname[0], (long)('A' + i));
-        cnstr_t not_deleted = _NEQ_(__exe_fs.sym_files[i].stat->st_ino, 0);
-        m = _OR_(m, _AND_(name_match, not_deleted));
-    }
-    return m;
-}
-
-/*
-cnstr_t file_exists(const char *fname) {
-    return _AND_(_GE_(fname[0], 'A'),
-                 _LT_(fname[0], (long)('A' + __exe_fs.n_sym_files)));
-}
-*/
-
-/*
-cnstr_t file_exists(const char *fname) {
-   struct stat sb;
-   cnstr_t in_range = _AND_(_GE_(fname[0], 'A'), _LE_(fname[0], 'Z'));
-   cnstr_t stat_ok  = _EQ_(stat(fname, &sb), 0);
-   return _AND_(in_range, stat_ok);
-}
-*/
-
-cnstr_t file_not_exists(const char *fname) {
-    return _NOT_(file_exists(fname));
-}
-
-/*
-cnstr_t file_not_exists(const char *fname) {
-    cnstr_t in_domain = _AND_(_GE_(fname[0], 'A'), _LE_(fname[0], 'Z'));
-    return _AND_(in_domain, _NOT_(file_exists(fname)));
-}
-*/

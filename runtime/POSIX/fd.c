@@ -34,7 +34,7 @@
 #include <unistd.h>
 
 /* Returns pointer to the symbolic file structure fs the pathname is symbolic */
-static exe_disk_file_t *__get_sym_file(const char *pathname) {
+exe_disk_file_t *__get_sym_file(const char *pathname) {
   if (!pathname)
     return NULL;
 
@@ -147,6 +147,7 @@ int __fd_open(const char *pathname, int flags, mode_t mode) {
     /* XXX Should check access against mode / stat / possible
        deletion. */
     f->dfile = df;
+    f->open_flags = flags;
     
     if ((flags & O_CREAT) && (flags & O_EXCL)) {
       errno = EEXIST;

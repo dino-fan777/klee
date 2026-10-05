@@ -70,6 +70,8 @@ typedef struct {
                                has eOpen. */
   off64_t off;              /* offset */
   exe_disk_file_t* dfile;   /* ptr to file on disk, if symbolic */
+  int open_flags;           /* the flags passed to open, if symbolic; only
+                               read by the file API's __file_flags */
 } exe_file_t;
 
 typedef struct {
@@ -123,6 +125,9 @@ int __fd_getdents(unsigned int fd, struct dirent64 *dirp, unsigned int count);
 /* Newly exposed functions */
 
 exe_file_t *__get_file(int fd);
+
+/* The symbolic file `pathname` names, or NULL. Exposed for the file API. */
+exe_disk_file_t *__get_sym_file(const char *pathname);
 
 // Builds a symbolic file into *dfile; exposed so __file_create() can register
 // them at runtime, not only at startup via --sym-files.
