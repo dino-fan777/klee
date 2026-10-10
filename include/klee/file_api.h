@@ -54,6 +54,7 @@ typedef long symbolic;
 
  int __file_dup(int oldfd);
  int __file_dup2(int oldfd, int newfd);
+ int __file_set_max_fds(int n);
 
 /* ══════════════════════════════════════════════════════════════════════
 **** ERROR

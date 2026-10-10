@@ -20,6 +20,8 @@
 
 exe_file_system_t __exe_fs;
 
+int __exe_max_fds = MAX_FDS;
+
 /* NOTE: It is important that these are statically initialized
    correctly, since things that run before main may hit them given the
    current way things are linked. */

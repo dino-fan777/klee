@@ -105,6 +105,10 @@ typedef struct {
 extern exe_file_system_t __exe_fs;
 extern exe_sym_env_t __exe_env;
 
+/* New descriptors are 0 to __exe_max_fds - 1, at most MAX_FDS - 1: the
+   limit __file_set_max_fds sets, as setrlimit(RLIMIT_NOFILE) */
+extern int __exe_max_fds;
+
 void klee_init_fds(unsigned n_files, unsigned file_length,
                    unsigned stdin_length, int sym_stdout_flag,
                    int do_all_writes_flag, unsigned max_failures);

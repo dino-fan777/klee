@@ -129,10 +129,10 @@ int __fd_open(const char *pathname, int flags, mode_t mode) {
   exe_file_t *f;
   int fd;
 
-  for (fd = 0; fd < MAX_FDS; ++fd)
+  for (fd = 0; fd < __exe_max_fds; ++fd)
     if (!(__exe_env.fds[fd].flags & eOpen))
       break;
-  if (fd == MAX_FDS) {
+  if (fd == __exe_max_fds) {
     errno = EMFILE;
     return -1;
   }
@@ -218,10 +218,10 @@ int __fd_openat(int basefd, const char *pathname, int flags, mode_t mode) {
     return __fd_open(pathname, flags, mode);
   }
 
-  for (fd = 0; fd < MAX_FDS; ++fd)
+  for (fd = 0; fd < __exe_max_fds; ++fd)
     if (!(__exe_env.fds[fd].flags & eOpen))
       break;
-  if (fd == MAX_FDS) {
+  if (fd == __exe_max_fds) {
     errno = EMFILE;
     return -1;
   }
@@ -1126,7 +1126,7 @@ int fsync(int fd) {
 int dup2(int oldfd, int newfd) {
   exe_file_t *f = __get_file(oldfd);
 
-  if (!f || !(newfd>=0 && newfd<MAX_FDS)) {
+  if (!f || !(newfd>=0 && newfd<__exe_max_fds)) {
     errno = EBADF;
     return -1;
   } else {
@@ -1155,10 +1155,10 @@ int dup(int oldfd) {
     return -1;
   } else {
     int fd;
-    for (fd = 0; fd < MAX_FDS; ++fd)
+    for (fd = 0; fd < __exe_max_fds; ++fd)
       if (!(__exe_env.fds[fd].flags & eOpen))
         break;
-    if (fd == MAX_FDS) {
+    if (fd == __exe_max_fds) {
       errno = EMFILE;
       return -1;
     } else {

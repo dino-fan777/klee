@@ -223,6 +223,15 @@ int __file_dup2(int oldfd, int newfd){
    return dup2(oldfd, newfd);
 }
 
+// setrlimit(RLIMIT_NOFILE, n): KLEE ignores setrlimit, and its descriptor
+// table is fixed at MAX_FDS, so the limit can be lowered but not raised
+int __file_set_max_fds(int n){
+   if (n < 0)
+      return -1;
+   __exe_max_fds = n < MAX_FDS ? n : MAX_FDS;
+   return 1;
+}
+
 /* ══════════════════════════════════════════════════════════════════════
  **** ERROR
  * ══════════════════════════════════════════════════════════════════════ */
