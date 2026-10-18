@@ -70,8 +70,9 @@ typedef struct {
                                has eOpen. */
   off64_t off;              /* offset */
   exe_disk_file_t* dfile;   /* ptr to file on disk, if symbolic */
-  int open_flags;           /* the flags passed to open, if symbolic; only
-                               read by the file API's __file_flags */
+  int open_flags;           /* the flags passed to open, if symbolic, or
+                               set by __file_set_flags; only read by the
+                               file API's __file_flags */
 } exe_file_t;
 
 typedef struct {

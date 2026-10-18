@@ -181,6 +181,17 @@ int __file_flags(int fd){
    return fcntl(fd, F_GETFL);
 }
 
+// Only the flags __file_flags reports change, not what fd may read or
+// write; a host file's flags are the kernel's, which cannot be set
+int __file_set_flags(int fd, int flags){
+   exe_file_t *f;
+   f = __get_file(fd);
+   if (!f || !f->dfile)
+      return -1;
+   f->open_flags = flags;
+   return 1;
+}
+
 // fstat(fd)'s st_mode, stored in *mode
 int __file_mode(int fd, mode_t *mode){
    exe_disk_file_t *df = __get_dfile(fd);
